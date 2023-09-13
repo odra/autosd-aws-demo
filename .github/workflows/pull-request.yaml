@@ -1,15 +1,79 @@
 name: CI
 on:
   pull_request:
-    branches: [ master]
+    branches: [master]
 jobs:
   container-test-job:
     runs-on: ubuntu-latest
     container:
-      image: registry.fedoraproject.org/fedora:38
+      image: quay.io/lrossett/autosd-test-runner:latest
       env:
-        NODE_ENV: ANSIBLE_HOST_KEY_CHECKING
+        ANSIBLE_HOST_KEY_CHECKING: "false"
       options: --cpus 1
     steps:
-      - name: install ansible
-        run: whoami
+      - uses: actions/checkout@v2
+      
+      - name: check if ansible is present
+        run: ansible --version
+      
+      - name: check if terraform is present
+        run: terraform --version
+
+      - name: init terraform
+        working-directory: deployment/terraform
+        run: terraform init
+      
+      - name: create infra
+        working-directory: deployment/terraform
+        env:
+          AWS_ACCESS_KEY_ID: "${{ secrets.AWS_ACCESS_KEY_ID }}"
+          AWS_SECRET_ACCESS_KEY: "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+        run: terraform apply --auto-approve
+
+      - name: Retrieve aws public ip
+        id: terraform_aws_ip
+        working-directory: deployment/terraform
+        run: |
+          echo "EC2_PUBLIC_IP=$(terraform output -json autosd_demo_public_ip | jq '.[0][0]' | tr -d \")" >> "$GITHUB_OUTPUT"
+
+      - name: Private key setup
+        run: |
+          echo "${{ secrets.ANSIBLE_SSH_KEY }}" > /tmp/keypair.pem
+
+          chmod 600 /tmp/keypair.pem
+
+        env:
+          ANSIBLE_SSH_KEY: "${{ secrets.ANSIBLE_SSH_KEY }}"
+          EC2_PUBLIC_IP: ${{join(steps.terraform_aws_ip.outputs.*, '\n')}}
+
+
+      - name: Generate ansible inventory file
+        working-directory: deployment/terraform
+        run: |
+          cat <<EOT > ../ansible/inv.ini
+          [autosd-vm]
+          ${{env.EC2_PUBLIC_IP}}
+          
+          [autosd-vm:vars]
+          ansible_ssh_user=ec2-user
+          ansible_ssh_private_key_file=/tmp/keypair.pem
+          EOT
+        env:
+          EC2_PUBLIC_IP: ${{join(steps.terraform_aws_ip.outputs.*, '\n')}}
+ 
+      - name: Deploy and Test
+        working-directory: deployment/ansible
+        run: |
+          sleep 15
+
+          ansible-playbook -i inv.ini main.yml
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "false"
+      
+      - name: destroy infra
+        if: always()
+        working-directory: deployment/terraform
+        env:
+          AWS_ACCESS_KEY_ID: "${{ secrets.AWS_ACCESS_KEY_ID }}"
+          AWS_SECRET_ACCESS_KEY: "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+        run: terraform destroy --auto-approve
