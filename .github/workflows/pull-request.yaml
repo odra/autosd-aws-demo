@@ -1,0 +1,15 @@
+name: CI
+on:
+  pull_request:
+    branches: [ master]
+jobs:
+  container-test-job:
+    runs-on: ubuntu-latest
+    container:
+      image: registry.fedoraproject.org/fedora:38
+      env:
+        NODE_ENV: ANSIBLE_HOST_KEY_CHECKING
+      options: --cpus 1
+    steps:
+      - name: install ansible
+        run: whoami
