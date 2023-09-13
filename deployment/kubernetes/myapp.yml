@@ -16,4 +16,9 @@ spec:
     spec:
       containers:
         - name: app
-          image: quay.io/lrossett/myapp:latest
+          image: registry.fedoraproject.org/fedora:38
+          command:
+            - "/bin/bash"
+            - "-c"
+            - "while true; do date '+%Y/%m/%d %H:%M:%S'; sleep 3; done"
+

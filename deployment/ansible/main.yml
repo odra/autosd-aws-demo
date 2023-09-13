@@ -1,0 +1,29 @@
+- hosts: autosd-vm
+  tasks:
+    - name: copy kubernetes yaml file
+      ansible.builtin.copy:
+        src: ../kubernetes/myapp.yml
+        dest: /etc/containers/systemd/myapp.yml
+      become: true
+    
+    - name: copy system yaml file
+      ansible.builtin.copy:
+        src: ../kubernetes/myapp.kube
+        dest: /etc/containers/systemd/myapp.kube
+      become: true
+
+    - name: start and enable service
+      ansible.builtin.systemd_service:
+        name: myapp
+        state: restarted
+        enabled: true
+        daemon_reload: true
+      become: true
+
+    - name: Assert if container is running
+      ansible.builtin.shell: podman inspect myapp-pod-app
+      become: true
+
+
+
+
