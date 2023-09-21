@@ -93,7 +93,7 @@ resource "aws_security_group" "autosd_demo_sg" {
 
 
 resource "aws_instance" "autosd_demo" {
-  ami           = "ami-0dec5dbda62a236b3"
+  ami           = "ami-05a4c39ccf55d877d"
   instance_type = "t3a.nano"  
   key_name      = "autosd-demo"
 
